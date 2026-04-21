@@ -1,4 +1,4 @@
-package com.studi.server;
+package com.studi.server.model;
 
 import jakarta.persistence.*;
 
@@ -19,6 +19,14 @@ public class Step {
 
     private int position;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private AppUser user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "study_plan_id")
+    private StudyPlan studyPlan;
+
     public Step() {}
 
     public Long getId() { return id; }
@@ -35,4 +43,10 @@ public class Step {
 
     public int getPosition() { return position; }
     public void setPosition(int position) { this.position = position; }
+
+    public AppUser getUser() { return user; }
+    public void setUser(AppUser user) { this.user = user; }
+
+    public StudyPlan getStudyPlan() { return studyPlan; }
+    public void setStudyPlan(StudyPlan studyPlan) { this.studyPlan = studyPlan; }
 }
