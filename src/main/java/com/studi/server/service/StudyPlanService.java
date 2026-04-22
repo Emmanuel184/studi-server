@@ -9,6 +9,7 @@ import com.studi.server.dto.CreateStudyPlanRequest;
 import com.studi.server.dto.CreateStudyPlanResponse;
 import com.studi.server.dto.StepRequest;
 import com.studi.server.dto.StepResponse;
+import com.studi.server.dto.StudyPlanSummaryResponse;
 import com.studi.server.model.AppUser;
 import com.studi.server.model.Step;
 import com.studi.server.model.StudyPlan;
@@ -37,21 +38,33 @@ public class StudyPlanService {
 
     @Transactional
     public CreateStudyPlanResponse createStudyPlan(Long userId, CreateStudyPlanRequest request) {
+        if (request.getTitle() == null || request.getTitle().isBlank()) {
+            throw new IllegalArgumentException("title is required");
+        }
+        if (request.getGoal() == null || request.getGoal().isBlank()) {
+            throw new IllegalArgumentException("goal is required");
+        }
+
         AppUser user = findUser(userId);
-        CreateStudyPlan hardcodedPlan = buildCreateStudyPlan(request);
 
         StudyPlan studyPlan = new StudyPlan();
         studyPlan.setUser(user);
-        studyPlan.setTitle(hardcodedPlan.title());
-        studyPlan.setGoal(hardcodedPlan.goal());
+        studyPlan.setTitle(request.getTitle().trim());
+        studyPlan.setGoal(request.getGoal().trim());
         StudyPlan savedPlan = studyPlanRepository.save(studyPlan);
 
-        List<StepResponse> savedSteps = hardcodedPlan.steps()
-                .stream()
+        List<StepRequest> steps = request.getSteps() != null ? request.getSteps() : List.of();
+        List<StepResponse> savedSteps = steps.stream()
                 .map(stepRequest -> stepService.createForStudyPlan(userId, savedPlan, stepRequest))
                 .toList();
 
         return toResponseFromStepResponses(savedPlan, savedSteps);
+    }
+
+    public List<StudyPlanSummaryResponse> getAll(Long userId) {
+        return studyPlanRepository.findAllByUserIdOrderByIdDesc(userId).stream()
+                .map(p -> new StudyPlanSummaryResponse(p.getId(), p.getTitle(), p.getGoal()))
+                .toList();
     }
 
     public CreateStudyPlanResponse getById(Long userId, Long planId) {
@@ -61,29 +74,12 @@ public class StudyPlanService {
         return toResponse(studyPlan, steps);
     }
 
-    private CreateStudyPlan buildCreateStudyPlan(CreateStudyPlanRequest request) {
-        String goal = request.getGoal() == null || request.getGoal().isBlank()
-                ? "Build a strong study routine"
-                : request.getGoal().trim();
-
-        return new CreateStudyPlan(
-                "Foundations Study Plan",
-                goal,
-                List.of(
-                        stepRequest("Clarify the goal", "Write down what success looks like for: " + goal, 1),
-                        stepRequest("Gather learning material", "Pick one primary resource and one backup reference.", 2),
-                        stepRequest("Study the fundamentals", "Spend focused time on the core concepts before practicing.", 3),
-                        stepRequest("Practice actively", "Create examples, answer questions, and explain the topic out loud.", 4),
-                        stepRequest("Review and adjust", "Check what worked, mark completed work, and revise the next session.", 5)));
-    }
-
-    private StepRequest stepRequest(String title, String description, int position) {
-        StepRequest request = new StepRequest();
-        request.setTitle(title);
-        request.setDescription(description);
-        request.setCompleted(false);
-        request.setPosition(position);
-        return request;
+    @Transactional
+    public void delete(Long userId, Long planId) {
+        StudyPlan studyPlan = studyPlanRepository.findByIdAndUserId(planId, userId)
+                .orElseThrow(() -> new RuntimeException("Study plan not found: " + planId));
+        stepRepository.deleteAllByStudyPlanId(studyPlan.getId());
+        studyPlanRepository.delete(studyPlan);
     }
 
     private CreateStudyPlanResponse toResponse(StudyPlan studyPlan, List<Step> steps) {
@@ -93,6 +89,7 @@ public class StudyPlanService {
                 studyPlan.getGoal(),
                 steps.stream().map(this::toStepResponse).toList());
     }
+
     private CreateStudyPlanResponse toResponseFromStepResponses(StudyPlan studyPlan, List<StepResponse> steps) {
         return new CreateStudyPlanResponse(
                 studyPlan.getId(),
@@ -111,8 +108,7 @@ public class StudyPlanService {
     }
 
     private AppUser findUser(Long userId) {
-        return userRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
     }
-
-    private record CreateStudyPlan(String title, String goal, List<StepRequest> steps) {}
 }

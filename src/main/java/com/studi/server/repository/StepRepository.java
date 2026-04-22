@@ -12,4 +12,5 @@ public interface StepRepository extends JpaRepository<Step, Long> {
     Optional<Step> findByIdAndUserId(Long id, Long userId);
 
     List<Step> findAllByStudyPlanIdAndUserIdOrderByPositionAsc(Long studyPlanId, Long userId);
+    void deleteAllByStudyPlanId(Long studyPlanId);
 }
